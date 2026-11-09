@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>学園祭レジ</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="frame" class="frame">
+
+    <!-- ===== ログイン ===== -->
+    <section id="view-login" class="view view-login" hidden>
+      <form id="login-form" class="login-card" autocomplete="on">
+        <h1>学園祭レジ</h1>
+        <p class="muted">スタッフ用アカウントでログインしてください</p>
+        <div id="demo-note" class="demo-note" hidden>デモモード（このPC内だけで動作）: ユーザー名 <b>demo</b> / パスワード <b>demo</b></div>
+        <label>ユーザー名<input id="login-user" name="username" autocomplete="username" required></label>
+        <label>パスワード<input id="login-pass" name="password" type="password" autocomplete="current-password" required></label>
+        <button id="login-btn" class="btn btn-primary btn-lg" type="submit">ログイン</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <!-- ===== ヘッダー（ログイン後） ===== -->
+    <header id="appbar" class="appbar" hidden>
+      <div class="appbar-title">学園祭レジ <span id="demo-badge" class="badge badge-demo" hidden>デモ</span></div>
+      <button id="register-btn" class="chip-btn" title="クリックでレジ番号を変更">レジ: <b id="register-name">-</b></button>
+      <span id="pending-badge" class="badge badge-warn" hidden title="クリックで再送">未送信ログ <b id="pending-count">0</b> 件</span>
+      <div class="spacer"></div>
+      <nav class="tabs">
+        <button class="tab" data-nav="menu">レジ</button>
+        <button class="tab" data-nav="admin">メニュー管理</button>
+      </nav>
+      <button id="logout-btn" class="btn btn-ghost">ログアウト</button>
+    </header>
+
+    <!-- ===== 画面1: メニュー ===== -->
+    <section id="view-menu" class="view view-menu" hidden>
+      <div class="menu-main">
+        <div id="genre-filter" class="genre-filter"></div>
+        <div id="menu-grid" class="menu-sections"></div>
+      </div>
+      <aside class="cart">
+        <div class="cart-head">
+          <h2>注文内容</h2>
+          <button id="cart-clear" class="btn btn-ghost btn-sm">すべて取消</button>
+        </div>
+        <ul id="cart-list" class="cart-list"></ul>
+        <div class="cart-total">
+          <span>合計</span>
+          <span id="cart-total" class="total-red">¥0</span>
+        </div>
+        <button id="cart-confirm" class="btn btn-primary btn-xl" disabled>内容確定</button>
+      </aside>
+    </section>
+
+    <!-- ===== 画面2: 内容確定（預かり金入力） ===== -->
+    <section id="view-confirm" class="view view-confirm" hidden>
+      <div class="confirm-wrap">
+        <div class="panel confirm-items">
+          <h2>注文内容の確認</h2>
+          <table class="items-table">
+            <thead><tr><th>メニュー</th><th class="num">単価</th><th class="num">数量</th><th class="num">小計</th></tr></thead>
+            <tbody id="confirm-items"></tbody>
+          </table>
+        </div>
+        <div class="panel confirm-pay">
+          <div class="pay-row"><span>合計金額</span><span id="confirm-total" class="total-red big">¥0</span></div>
+          <label class="pay-label" for="received-input">お預かり金額</label>
+          <div class="yen-input">
+            <span>¥</span>
+            <input id="received-input" inputmode="numeric" autocomplete="off" placeholder="0">
+          </div>
+          <div class="quick-amounts" id="quick-amounts"></div>
+          <div class="pay-row change-preview"><span>お釣り</span><span id="change-preview">-</span></div>
+          <p id="received-hint" class="hint"></p>
+          <div class="confirm-actions">
+            <button id="confirm-back" class="btn btn-ghost btn-lg">← 戻って修正</button>
+            <button id="confirm-ok" class="btn btn-primary btn-xl" disabled>内容確定</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 画面3: 決済完了 ===== -->
+    <section id="view-done" class="view view-done" hidden>
+      <div class="done-card">
+        <div id="log-status" class="log-status"></div>
+        <div class="change-box">
+          <div class="change-label">お釣り</div>
+          <div id="done-change" class="change-amount">¥0</div>
+          <div id="done-detail" class="muted"></div>
+        </div>
+        <button id="done-next" class="btn btn-primary btn-xl">次のお客様へ（メニュー画面に戻る）</button>
+      </div>
+    </section>
+
+    <!-- ===== 画面4: メニュー管理 ===== -->
+    <section id="view-admin" class="view view-admin" hidden>
+      <div class="admin-head">
+        <h2>メニュー管理</h2>
+        <span id="admin-status" class="muted"></span>
+        <div class="spacer"></div>
+        <button id="admin-reload" class="btn btn-ghost">サーバーから再読込</button>
+        <button id="admin-export" class="btn btn-ghost">この端末の取引履歴CSV</button>
+      </div>
+      <div class="admin-body">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>ジャンル（色分け）</h3>
+            <button id="genre-add" class="btn btn-primary btn-sm">＋ ジャンル追加</button>
+          </div>
+          <ul id="genre-list" class="genre-list"></ul>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>メニュー</h3>
+            <button id="menu-add" class="btn btn-primary btn-sm">＋ メニュー追加</button>
+          </div>
+          <table class="admin-table">
+            <thead><tr><th></th><th>メニュー名</th><th>ジャンル</th><th class="num">金額</th><th>状態</th><th>並び</th><th>操作</th></tr></thead>
+            <tbody id="admin-menu-list"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== メニュー編集ダイアログ ===== -->
+  <dialog id="menu-dialog" class="dialog">
+    <form id="menu-form" method="dialog">
+      <h3 id="menu-dialog-title">メニュー編集</h3>
+      <div class="dialog-grid">
+        <div>
+          <label>メニュー名<input id="mf-name" required maxlength="30"></label>
+          <label>ジャンル<select id="mf-genre" required></select></label>
+          <label>金額（円）<input id="mf-price" inputmode="numeric" required></label>
+          <label class="check"><input id="mf-active" type="checkbox" checked> 販売中（オフで一時無効化）</label>
+          <div class="preview-wrap">
+            <div class="muted">プレビュー</div>
+            <div id="mf-preview" class="menu-tile preview-tile"></div>
+          </div>
+        </div>
+        <div>
+          <div class="field-label">ピクトグラム</div>
+          <div id="mf-icons" class="icon-picker"></div>
+        </div>
+      </div>
+      <p id="mf-error" class="error"></p>
+      <div class="dialog-actions">
+        <button type="button" id="mf-cancel" class="btn btn-ghost">キャンセル</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== ジャンル編集ダイアログ ===== -->
+  <dialog id="genre-dialog" class="dialog dialog-sm">
+    <form id="genre-form" method="dialog">
+      <h3 id="genre-dialog-title">ジャンル編集</h3>
+      <label>ジャンル名<input id="gf-name" required maxlength="20"></label>
+      <div class="field-label">色</div>
+      <div id="gf-colors" class="color-picker"></div>
+      <label class="inline">その他の色 <input id="gf-color" type="color" value="#1e7a46"></label>
+      <p id="gf-error" class="error"></p>
+      <div class="dialog-actions">
+        <button type="button" id="gf-cancel" class="btn btn-ghost">キャンセル</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== レジ番号ダイアログ ===== -->
+  <dialog id="register-dialog" class="dialog dialog-sm">
+    <form id="register-form" method="dialog">
+      <h3>このPCのレジ番号</h3>
+      <label>レジ番号（名前）<input id="rf-name" required maxlength="12" placeholder="例: 1, A, 受付"></label>
+      <p class="muted">ログに「どのPCで会計したか」として記録されます。</p>
+      <div class="dialog-actions">
+        <button type="button" id="rf-cancel" class="btn btn-ghost">キャンセル</button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
