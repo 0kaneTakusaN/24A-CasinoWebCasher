@@ -1,0 +1,5 @@
+# GAS のコード（パスワードを含むため公開しない。Apps Script 側にだけ置く）
+gas/
+
+# Claude Code の設定
+.claude/

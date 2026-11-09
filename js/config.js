@@ -5,7 +5,7 @@
 // 空のままだと、localhost で開いたときだけ「デモモード」（ログイン: demo / demo、
 // データはこのPCのブラウザ内のみ）で動きます。GitHub Pages 上では動作しません。
 window.APP_CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbyidFYHepTH_IHs1uUTesN71ObdQgDdw1OtIy4aQbBX1OTYIk2Pl3Gl1X3CKMsPXRJb/exec',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbyiMAnjUyJ1IKX7tgnqEkXl-tNqlC3SuoCCGB1Lw4CBLjQR3zAiB6NwrMu-rAalhdd87g/exec',
   // ログ送信のタイムアウト（ミリ秒）
   REQUEST_TIMEOUT_MS: 15000,
   // 未送信ログの自動再送間隔（ミリ秒）
