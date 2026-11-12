@@ -184,6 +184,22 @@ h1, h2, h3 { margin: 0; }
 .color-picker button.sel { border-color: var(--text); box-shadow: 0 0 0 2px #fff inset; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
 
+/* ---------- 返金 ---------- */
+:root { --refund: #7c3aed; --refund-dark: #6d28d9; --refund-bg: #f5f0ff; }
+.btn-refund { background: var(--refund); color: #fff; }
+.btn-refund:hover:not(:disabled) { background: var(--refund-dark); filter: none; }
+.tab.tab-refund.active { background: var(--refund); color: #fff; }
+.refund-banner { display: flex; align-items: center; gap: 12px; background: var(--refund); color: #fff; padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; font-size: 17px; }
+.refund-banner .btn { margin-left: auto; }
+.mode-refund .menu-main { background: var(--refund-bg); }
+.mode-refund .genre-filter { background: var(--refund-bg); }
+.mode-refund .cart { border-left: 6px solid var(--refund); }
+.mode-refund .total-red, .view-rconfirm .total-red, .done-refund .change-amount { color: var(--refund); }
+.mode-refund .menu-tile .tile-qty { background: var(--refund); }
+.mode-refund #cart-confirm { background: var(--refund); }
+.refund-tag { align-self: flex-start; background: var(--refund); color: #fff; font-weight: 800; padding: 4px 14px; border-radius: 999px; }
+.view-rconfirm .confirm-actions .btn-xl { width: auto; }
+
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #111827; color: #fff; padding: 12px 22px; border-radius: 10px; font-weight: 700; z-index: 100; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
 .toast.err { background: #b91c1c; }
 

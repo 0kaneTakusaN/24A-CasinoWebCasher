@@ -31,6 +31,7 @@
       <div class="spacer"></div>
       <nav class="tabs">
         <button class="tab" data-nav="menu">レジ</button>
+        <button class="tab tab-refund" data-nav="refund">返金</button>
         <button class="tab" data-nav="admin">メニュー管理</button>
       </nav>
       <button id="logout-btn" class="btn btn-ghost">ログアウト</button>
@@ -39,17 +40,21 @@
     <!-- ===== 画面1: メニュー ===== -->
     <section id="view-menu" class="view view-menu" hidden>
       <div class="menu-main">
+        <div id="refund-banner" class="refund-banner" hidden>
+          <b>返金モード</b>　お客様に返す商品と点数を選んでください
+          <button id="refund-exit" class="btn btn-ghost btn-sm">レジに戻る</button>
+        </div>
         <div id="genre-filter" class="genre-filter"></div>
         <div id="menu-grid" class="menu-sections"></div>
       </div>
       <aside class="cart">
         <div class="cart-head">
-          <h2>注文内容</h2>
+          <h2 id="cart-title">注文内容</h2>
           <button id="cart-clear" class="btn btn-ghost btn-sm">すべて取消</button>
         </div>
         <ul id="cart-list" class="cart-list"></ul>
         <div class="cart-total">
-          <span>合計</span>
+          <span id="cart-total-label">合計</span>
           <span id="cart-total" class="total-red">¥0</span>
         </div>
         <button id="cart-confirm" class="btn btn-primary btn-xl" disabled>内容確定</button>
@@ -84,12 +89,34 @@
       </div>
     </section>
 
+    <!-- ===== 返金の確認 ===== -->
+    <section id="view-rconfirm" class="view view-confirm view-rconfirm" hidden>
+      <div class="confirm-wrap">
+        <div class="panel confirm-items">
+          <h2>返金内容の確認</h2>
+          <table class="items-table">
+            <thead><tr><th>メニュー</th><th class="num">単価</th><th class="num">数量</th><th class="num">小計</th></tr></thead>
+            <tbody id="rconfirm-items"></tbody>
+          </table>
+        </div>
+        <div class="panel confirm-pay">
+          <div class="refund-tag">返金</div>
+          <div class="pay-row"><span>返金額</span><span id="rconfirm-total" class="total-red big">¥0</span></div>
+          <p class="muted">確定すると、この金額をお客様に返す記録がログに残ります。<br>レジから現金を出してお客様に渡してください。</p>
+          <div class="confirm-actions">
+            <button id="rconfirm-back" class="btn btn-ghost btn-lg">← 戻って修正</button>
+            <button id="rconfirm-ok" class="btn btn-refund btn-xl">返金を確定</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== 画面3: 決済完了 ===== -->
     <section id="view-done" class="view view-done" hidden>
       <div class="done-card">
         <div id="log-status" class="log-status"></div>
         <div class="change-box">
-          <div class="change-label">お釣り</div>
+          <div id="done-label" class="change-label">お釣り</div>
           <div id="done-change" class="change-amount">¥0</div>
           <div id="done-detail" class="muted"></div>
         </div>

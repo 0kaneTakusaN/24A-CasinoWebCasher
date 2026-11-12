@@ -17,12 +17,20 @@
   const state = {
     auth: store.get('auth', null),          // { token, exp }
     menu: store.get('menuCache', { genres: [], menus: [] }),
-    cart: [],                               // [{ id, name, price, genreId, qty }]
+    mode: 'sale',                           // 'sale'（会計） / 'refund'（返金）
+    carts: { sale: [], refund: [] },        // [{ id, name, price, genreId, qty }]
     filter: 'all',
     view: null,
     tx: null,
     busy: false
   };
+  // state.cart は現在のモード（会計/返金）のカートを指す
+  Object.defineProperty(state, 'cart', {
+    get() { return state.carts[state.mode]; },
+    set(v) { state.carts[state.mode] = v; }
+  });
+  const isRefund = () => state.mode === 'refund';
+  const anyCart = () => state.carts.sale.length > 0 || state.carts.refund.length > 0;
 
   // ---------- 共通 ----------
   function toast(msg, isErr) {
@@ -80,12 +88,15 @@
   // ---------- 画面遷移 ----------
   function show(view) {
     state.view = view;
-    ['login', 'menu', 'confirm', 'done', 'admin'].forEach((v) => { $('#view-' + v).hidden = v !== view; });
+    ['login', 'menu', 'confirm', 'rconfirm', 'done', 'admin'].forEach((v) => { $('#view-' + v).hidden = v !== view; });
     $('#appbar').hidden = view === 'login';
+    const regNav = isRefund() ? 'refund' : 'menu';
+    const inRegister = ['menu', 'confirm', 'rconfirm', 'done'].includes(view);
     document.querySelectorAll('.tab').forEach((t) => {
       const nav = t.dataset.nav;
-      t.classList.toggle('active', nav === view || (nav === 'menu' && (view === 'confirm' || view === 'done')));
+      t.classList.toggle('active', nav === view || (inRegister && nav === regNav));
     });
+    $('#frame').classList.toggle('mode-refund', isRefund() && view === 'menu');
     if (view !== 'done') $('#frame').classList.remove('frame-fail');
     if (view === 'menu') renderMenu();
     if (view === 'admin') renderAdmin();
@@ -121,10 +132,11 @@
   }
 
   function logout(silent) {
-    if (!silent && state.cart.length && !confirm('注文中の内容があります。ログアウトしますか？')) return;
+    if (!silent && anyCart() && !confirm('注文中（または返金中）の内容があります。ログアウトしますか？')) return;
     state.auth = null;
     store.del('auth');
-    state.cart = [];
+    state.carts = { sale: [], refund: [] };
+    state.mode = 'sale';
     show('login');
   }
 
@@ -252,6 +264,14 @@
     $('#cart-total').textContent = yen(cartTotal());
     $('#cart-confirm').disabled = !state.cart.length;
     $('#cart-clear').disabled = !state.cart.length;
+
+    // 会計 / 返金モードの表示切り替え
+    const r = isRefund();
+    $('#refund-banner').hidden = !r;
+    $('#cart-title').textContent = r ? '返金内容' : '注文内容';
+    $('#cart-total-label').textContent = r ? '返金額' : '合計';
+    $('#cart-confirm').textContent = r ? '返金内容確定' : '内容確定';
+    if (!state.cart.length && r) ul.innerHTML = '<li class="cart-empty">返金する商品を<br>クリックして追加してください</li>';
   }
 
   // ========== 画面2: 内容確定 ==========
@@ -322,17 +342,60 @@
 
     const total = cartTotal();
     const received = parseReceived();
+    await recordTx(makeTx('sale', total, received, received - total));
+  }
+
+  // ========== 返金 ==========
+  function setMode(mode) {
+    state.mode = mode;
+    show('menu');
+  }
+
+  function goRefundConfirm() {
+    if (!state.cart.length) return;
+    $('#rconfirm-items').innerHTML = state.cart.map((c) =>
+      `<tr><td>${esc(c.name)}</td><td class="num">${yen(c.price)}</td><td class="num">${c.qty}</td><td class="num">${yen(c.price * c.qty)}</td></tr>`
+    ).join('');
+    $('#rconfirm-total').textContent = yen(cartTotal());
+    $('#rconfirm-ok').disabled = false;
+    state.rconfirmAt = Date.now();
+    show('rconfirm');
+  }
+
+  async function confirmRefund() {
+    if (state.busy || !isRefund() || !state.cart.length) return;
+    state.busy = true;
+    $('#rconfirm-ok').disabled = true;
+    const total = cartTotal();
+    // 返金は「預かり 0 円、返す金額 = お釣り」として記録（GAS 側で点数・合計をマイナスにする）
+    await recordTx(makeTx('refund', total, 0, total));
+  }
+
+  function goNext() {
+    if (state.busy) return;
+    // 返金後は誤操作防止のため必ず会計モードに戻す
+    if (state.tx && state.tx.type === 'refund') state.mode = 'sale';
+    show('menu');
+    loadMenu(false);
+  }
+
+  // ---------- 会計・返金の共通処理（記録して完了画面へ） ----------
+  function makeTx(type, total, received, change) {
     const now = new Date();
     const reg = registerName() || '-';
     const pad = (n) => String(n).padStart(2, '0');
     const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const tx = {
-      id: `${reg}-${stamp}-${Math.random().toString(36).slice(2, 6)}`,
+    return {
+      id: `${reg}-${type === 'refund' ? 'R' : ''}${stamp}-${Math.random().toString(36).slice(2, 6)}`,
+      type,
       time: now.toISOString(),
       register: reg,
       items: state.cart.map((c) => ({ id: c.id, name: c.name, price: c.price, qty: c.qty })),
-      total, received, change: received - total
+      total, received, change
     };
+  }
+
+  async function recordTx(tx) {
     state.tx = tx;
 
     // 端末内にも履歴を保存（違算確認用バックアップ）
@@ -340,10 +403,16 @@
     hist.push(tx);
     store.set('txHistory', hist.slice(-2000));
 
-    // 画面3へ（お釣りはすぐ表示し、ログ送信結果は後から反映）
+    // 完了画面へ（金額はすぐ表示し、ログ送信結果は後から反映）
     state.cart = [];
+    const refund = tx.type === 'refund';
+    $('#done-label').textContent = refund ? '返金額（お客様に返す金額）' : 'お釣り';
     $('#done-change').textContent = yen(tx.change);
-    $('#done-detail').textContent = `合計 ${yen(tx.total)} ／ お預かり ${yen(tx.received)}`;
+    $('#done-detail').textContent = refund
+      ? `${tx.items.map((i) => `${i.name}×${i.qty}`).join('、')} を返金`
+      : `合計 ${yen(tx.total)} ／ お預かり ${yen(tx.received)}`;
+    $('#done-next').textContent = refund ? 'レジ（会計）に戻る' : '次のお客様へ（メニュー画面に戻る）';
+    $('#view-done').classList.toggle('done-refund', refund);
     setLogStatus('sending');
     state.doneAt = Date.now();
     show('done');
@@ -372,7 +441,7 @@
         '<div>ログ保存に成功しました</div>';
     } else {
       el.innerHTML = '<div class="warn-mark">!</div><div>ログ保存に失敗しました' +
-        `<span class="sub">${esc(detail || '')}<br>この取引は「未送信ログ」としてPC内に保管し、自動で再送します。会計自体は完了しています。</span></div>`;
+        `<span class="sub">${esc(detail || '')}<br>この取引は「未送信ログ」としてPC内に保管し、自動で再送します。${state.tx && state.tx.type === 'refund' ? '返金' : '会計'}自体は完了しています。</span></div>`;
     }
   }
 
@@ -612,13 +681,16 @@
   function exportCsv() {
     const hist = store.get('txHistory', []);
     if (!hist.length) { toast('この端末の取引履歴はありません'); return; }
-    const rows = [['会計日時', '取引ID', 'レジ番号', '内容', '合計金額', '預かり金額', 'お釣り', 'ログ送信']];
+    const rows = [['会計日時', '取引ID', '種別', 'レジ番号', '内容', '合計金額', '預かり金額', 'お釣り', 'ログ送信']];
     const pend = new Set(pending().map((x) => x.id));
-    hist.forEach((t) => rows.push([
-      new Date(t.time).toLocaleString('ja-JP'), t.id, t.register,
-      t.items.map((i) => `${i.name}×${i.qty}(¥${i.price})`).join(' / '),
-      t.total, t.received, t.change, pend.has(t.id) ? '未送信' : '済'
-    ]));
+    hist.forEach((t) => {
+      const refund = t.type === 'refund';
+      rows.push([
+        new Date(t.time).toLocaleString('ja-JP'), t.id, refund ? '返金' : '会計', t.register,
+        t.items.map((i) => `${i.name}×${i.qty}(¥${i.price})`).join(' / '),
+        refund ? -t.total : t.total, t.received, t.change, pend.has(t.id) ? '未送信' : '済'
+      ]);
+    });
     const csv = '﻿' + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -638,20 +710,26 @@
     document.querySelectorAll('.tab').forEach((t) => {
       t.onclick = () => {
         if (state.busy) return;
-        if (t.dataset.nav === 'admin') loadMenu(false);
-        show(t.dataset.nav);
+        const nav = t.dataset.nav;
+        if (nav === 'admin') { loadMenu(false); show('admin'); }
+        else setMode(nav === 'refund' ? 'refund' : 'sale');
       };
     });
+    $('#refund-exit').onclick = () => setMode('sale');
 
-    $('#cart-clear').onclick = () => { if (confirm('注文内容をすべて取り消しますか？')) { state.cart = []; renderMenu(); } };
-    $('#cart-confirm').onclick = goConfirm;
+    $('#cart-clear').onclick = () => {
+      if (confirm(isRefund() ? '返金内容をすべて取り消しますか？' : '注文内容をすべて取り消しますか？')) { state.cart = []; renderMenu(); }
+    };
+    $('#cart-confirm').onclick = () => (isRefund() ? goRefundConfirm() : goConfirm());
+    $('#rconfirm-back').onclick = () => show('menu');
+    $('#rconfirm-ok').onclick = confirmRefund;
 
     $('#received-input').addEventListener('input', validateReceived);
     $('#received-input').addEventListener('compositionend', () => validateReceived());
     $('#confirm-back').onclick = () => show('menu');
     $('#confirm-ok').onclick = confirmPayment;
 
-    $('#done-next').onclick = () => { if (!state.busy) { show('menu'); loadMenu(false); } };
+    $('#done-next').onclick = goNext;
 
     $('#genre-add').onclick = () => openGenreDialog(null);
     $('#menu-add').onclick = () => openMenuDialog(null);
@@ -673,19 +751,23 @@
       if (state.view === 'confirm') {
         if (e.key === 'Enter') { e.preventDefault(); confirmPayment(); }
         else if (e.key === 'Escape') show('menu');
+      } else if (state.view === 'rconfirm') {
+        // Enter 連打で確認せずに返金されないよう、表示直後は無視
+        if (e.key === 'Enter') { e.preventDefault(); if (Date.now() - state.rconfirmAt >= 1000) confirmRefund(); }
+        else if (e.key === 'Escape') show('menu');
       } else if (state.view === 'done' && e.key === 'Enter') {
         // お釣りを見ずに連打で戻らないよう、表示直後は無視
         e.preventDefault();
         if (state.busy || Date.now() - state.doneAt < 1000) return;
-        e.preventDefault(); show('menu'); loadMenu(false);
+        goNext();
       } else if (state.view === 'menu' && e.key === 'Enter' && state.cart.length && document.activeElement.tagName !== 'INPUT') {
-        e.preventDefault(); goConfirm();
+        e.preventDefault(); isRefund() ? goRefundConfirm() : goConfirm();
       }
     });
 
     // 誤ってタブを閉じないように
     window.addEventListener('beforeunload', (e) => {
-      if (state.cart.length || state.view === 'confirm' || state.busy) { e.preventDefault(); e.returnValue = ''; }
+      if (anyCart() || state.view === 'confirm' || state.view === 'rconfirm' || state.busy) { e.preventDefault(); e.returnValue = ''; }
     });
 
     // 定期処理
